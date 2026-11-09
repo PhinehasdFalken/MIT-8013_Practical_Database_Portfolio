@@ -1,0 +1,76 @@
+// Finesse Klass – conceptual ER diagram (Chen notation, as taught in Study Session 1)
+//   Entity            = rectangle
+//   Attribute         = ellipse (primary key underlined)
+//   Composite attr.   = ellipse connected to ellipses
+//   Derived attribute = dashed ellipse
+//   Relationship      = diamond, with cardinality on the lines
+// Render:  dot -Tpng -Gdpi=150 finesse_klass_er_chen.dot -o finesse_klass_er_chen.png
+graph FinesseKlassER {
+  graph [layout=neato, overlap=false, splines=true, sep="+12", fontname="Helvetica",
+         label="Finesse Klass – Conceptual ER Diagram (Chen notation)", labelloc=t, fontsize=20];
+  node  [fontname="Helvetica", fontsize=11];
+  edge  [fontname="Helvetica", fontsize=11, len=1.4];
+
+  // ---------------- entities
+  node [shape=box, style="filled,bold", fillcolor="#dbe9f6"];
+  REGION; STATE; CUSTOMER; ADDRESS; CATEGORY; PRODUCT; PRODUCT_VARIANT [label="PRODUCT VARIANT"];
+  ORDER [label="CUSTOMER ORDER"]; BESPOKE_SPEC [label="BESPOKE SPEC"]; PAYMENT; DELIVERY;
+  STOCK_MOVEMENT [label="STOCK MOVEMENT"];
+
+  // ---------------- relationships
+  node [shape=diamond, style=filled, fillcolor="#fde9c9", fixedsize=false];
+  r_contains_state [label="Contains"]; r_located [label="Located\nin"]; r_has_addr [label="Has"];
+  r_places [label="Places"]; r_ships [label="Ships\nto"]; r_groups [label="Groups"];
+  r_offered [label="Offered\nas"]; r_order_line [label="Contains\n(order line)"];
+  r_spec [label="Measured\nby"]; r_paid [label="Paid\nby"]; r_delivered [label="Fulfilled\nby"];
+  r_tracks [label="Tracks"];
+
+  // ---------------- attributes
+  node [shape=ellipse, style=filled, fillcolor="#f4f4f4"];
+  a_region_id [label=<<u>region_id</u>>]; a_region_name [label="region_name"];
+  a_state_id [label=<<u>state_id</u>>]; a_state_name [label="state_name"];
+  a_cust_id [label=<<u>customer_id</u>>]; a_name [label="name"]; a_first [label="first_name"]; a_last [label="last_name"];
+  a_email [label="email"]; a_phone [label="phone"]; a_ig [label="instagram_handle"];
+  a_addr_id [label=<<u>address_id</u>>]; a_street [label="street"]; a_city [label="city"]; a_default [label="is_default"];
+  a_cat_id [label=<<u>category_id</u>>]; a_cat_name [label="category_name"];
+  a_prod_id [label=<<u>product_id</u>>]; a_prod_name [label="product_name"]; a_material [label="material"]; a_bespoke [label="bespoke_available"];
+  a_var_id [label=<<u>variant_id</u>>]; a_size [label="size_eu"]; a_colour [label="colour"]; a_sku [label="sku"]; a_stock [label="stock_qty"]; a_price [label="unit_price"];
+  a_order_id [label=<<u>order_id</u>>]; a_order_date [label="order_date"]; a_status [label="status"]; a_type [label="order_type"];
+  a_total [label="total_amount", style="dashed,filled"];
+  a_qty [label="quantity"]; a_line_price [label="unit_price\n(at sale)"]; a_line_no [label="line_no"];
+  a_foot [label="foot_length_cm"]; a_width [label="foot_width_cm"]; a_leather [label="leather_choice"];
+  a_pay_id [label=<<u>payment_id</u>>]; a_ref [label="reference"]; a_method [label="method"]; a_amount [label="amount"]; a_pay_status [label="status"];
+  a_del_id [label=<<u>delivery_id</u>>]; a_courier [label="courier"]; a_tracking [label="tracking_no"]; a_dispatched [label="dispatched_at"]; a_delivered [label="delivered_at"];
+  a_mov_id [label=<<u>movement_id</u>>]; a_change [label="change_qty"]; a_reason [label="reason"];
+
+  // ---------------- entity – attribute links
+  edge [len=1.0, color="#777777"];
+  REGION -- {a_region_id a_region_name};
+  STATE -- {a_state_id a_state_name};
+  CUSTOMER -- {a_cust_id a_name a_email a_phone a_ig}; a_name -- {a_first a_last};
+  ADDRESS -- {a_addr_id a_street a_city a_default};
+  CATEGORY -- {a_cat_id a_cat_name};
+  PRODUCT -- {a_prod_id a_prod_name a_material a_bespoke};
+  PRODUCT_VARIANT -- {a_var_id a_size a_colour a_sku a_stock a_price};
+  ORDER -- {a_order_id a_order_date a_status a_type a_total};
+  r_order_line -- {a_qty a_line_price a_line_no};        // attributes of the M:N relationship
+  BESPOKE_SPEC -- {a_foot a_width a_leather};
+  PAYMENT -- {a_pay_id a_ref a_method a_amount a_pay_status};
+  DELIVERY -- {a_del_id a_courier a_tracking a_dispatched a_delivered};
+  STOCK_MOVEMENT -- {a_mov_id a_change a_reason};
+
+  // ---------------- entity – relationship links with cardinality
+  edge [len=1.6, color=black, penwidth=1.4];
+  REGION -- r_contains_state [label="1"];   r_contains_state -- STATE [label="N"];
+  STATE -- r_located [label="1"];           r_located -- ADDRESS [label="N"];
+  CUSTOMER -- r_has_addr [label="1"];       r_has_addr -- ADDRESS [label="N"];
+  CUSTOMER -- r_places [label="1"];         r_places -- ORDER [label="N"];
+  ADDRESS -- r_ships [label="1"];           r_ships -- ORDER [label="N"];
+  CATEGORY -- r_groups [label="1"];         r_groups -- PRODUCT [label="N"];
+  PRODUCT -- r_offered [label="1"];         r_offered -- PRODUCT_VARIANT [label="N"];
+  ORDER -- r_order_line [label="M"];        r_order_line -- PRODUCT_VARIANT [label="N"];
+  ORDER -- r_spec [label="1"];              r_spec -- BESPOKE_SPEC [label="0..1"];
+  ORDER -- r_paid [label="1"];              r_paid -- PAYMENT [label="N"];
+  ORDER -- r_delivered [label="1"];         r_delivered -- DELIVERY [label="0..1"];
+  PRODUCT_VARIANT -- r_tracks [label="1"];  r_tracks -- STOCK_MOVEMENT [label="N"];
+}

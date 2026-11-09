@@ -1,0 +1,45 @@
+               List of tables
+ Schema |      Name       | Type  |  Owner   
+--------+-----------------+-------+----------
+ fk     | address         | table | postgres
+ fk     | bespoke_spec    | table | postgres
+ fk     | category        | table | postgres
+ fk     | customer        | table | postgres
+ fk     | customer_order  | table | postgres
+ fk     | delivery        | table | postgres
+ fk     | order_item      | table | postgres
+ fk     | payment         | table | postgres
+ fk     | product         | table | postgres
+ fk     | product_variant | table | postgres
+ fk     | region          | table | postgres
+ fk     | state           | table | postgres
+ fk     | stock_movement  | table | postgres
+(13 rows)
+
+                                     Table "fk.customer_order"
+    Column    |            Type             | Collation | Nullable |            Default            
+--------------+-----------------------------+-----------+----------+-------------------------------
+ order_id     | bigint                      |           | not null | generated always as identity
+ customer_id  | integer                     |           | not null | 
+ address_id   | integer                     |           | not null | 
+ order_date   | timestamp without time zone |           | not null | now()
+ order_type   | character varying(10)       |           | not null | 'standard'::character varying
+ status       | character varying(15)       |           | not null | 'pending'::character varying
+ total_amount | numeric(12,2)               |           | not null | 0
+Indexes:
+    "customer_order_pkey" PRIMARY KEY, btree (order_id) CLUSTER
+    "uq_order_type" UNIQUE CONSTRAINT, btree (order_id, order_type)
+Check constraints:
+    "customer_order_order_type_check" CHECK (order_type::text = ANY (ARRAY['standard'::character varying, 'bespoke'::character varying]::text[]))
+    "customer_order_status_check" CHECK (status::text = ANY (ARRAY['pending'::character varying, 'paid'::character varying, 'in_production'::character varying, 'dispatched'::character varying, 'delivered'::character varying, 'cancelled'::character varying]::text[]))
+    "customer_order_total_amount_check" CHECK (total_amount >= 0::numeric)
+Foreign-key constraints:
+    "customer_order_customer_id_fkey" FOREIGN KEY (customer_id) REFERENCES customer(customer_id)
+    "fk_order_address" FOREIGN KEY (address_id, customer_id) REFERENCES address(address_id, customer_id)
+Referenced by:
+    TABLE "delivery" CONSTRAINT "delivery_order_id_fkey" FOREIGN KEY (order_id) REFERENCES customer_order(order_id)
+    TABLE "bespoke_spec" CONSTRAINT "fk_bespoke_order" FOREIGN KEY (order_id, order_type) REFERENCES customer_order(order_id, order_type) ON DELETE CASCADE
+    TABLE "order_item" CONSTRAINT "order_item_order_id_fkey" FOREIGN KEY (order_id) REFERENCES customer_order(order_id) ON DELETE CASCADE
+    TABLE "payment" CONSTRAINT "payment_order_id_fkey" FOREIGN KEY (order_id) REFERENCES customer_order(order_id)
+    TABLE "stock_movement" CONSTRAINT "stock_movement_order_id_fkey" FOREIGN KEY (order_id) REFERENCES customer_order(order_id)
+

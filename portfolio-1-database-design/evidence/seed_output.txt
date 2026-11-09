@@ -1,0 +1,42 @@
+SET
+ setseed 
+---------
+ 
+(1 row)
+
+INSERT 0 6
+INSERT 0 37
+INSERT 0 6
+INSERT 0 120
+INSERT 0 2400
+INSERT 0 40000
+INSERT 0 56045
+INSERT 0 250000
+INSERT 0 321698
+INSERT 0 19945
+INSERT 0 19945
+UPDATE 250000
+INSERT 0 235923
+INSERT 0 27258
+INSERT 0 901
+INSERT 0 234228
+INSERT 0 2317
+CLUSTER
+ANALYZE
+   table_name    | count  
+-----------------+--------
+ address         |  56045
+ bespoke_spec    |  19945
+ category        |      6
+ customer        |  40000
+ customer_order  | 250000
+ delivery        | 234228
+ order_item      | 341643
+ payment         | 264082
+ product         |    120
+ product_variant |   2400
+ region          |      6
+ state           |     37
+ stock_movement  |   2317
+(13 rows)
+

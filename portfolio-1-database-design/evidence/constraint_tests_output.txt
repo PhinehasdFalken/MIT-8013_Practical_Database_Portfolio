@@ -1,0 +1,35 @@
+SET
+--- T1 Entity integrity: duplicate primary key on category
+psql:sql/03_constraint_tests.sql:11: ERROR:  duplicate key value violates unique constraint "category_pkey"
+DETAIL:  Key (category_id)=(1) already exists.
+--- T2 Candidate key: a second customer with an e-mail that already exists
+psql:sql/03_constraint_tests.sql:15: ERROR:  duplicate key value violates unique constraint "customer_email_key"
+DETAIL:  Key (email)=(bisi.akande1@yahoo.com) already exists.
+--- T3 Domain integrity: shoe size outside the EU 36-48 range
+psql:sql/03_constraint_tests.sql:19: ERROR:  new row for relation "product_variant" violates check constraint "product_variant_size_eu_check"
+DETAIL:  Failing row contains (2401, 1, 52, Black, FK-TEST-52, 50000.00, 3).
+--- T4 Domain integrity: stock can never go negative (no overselling)
+psql:sql/03_constraint_tests.sql:22: ERROR:  new row for relation "product_variant" violates check constraint "product_variant_stock_qty_check"
+DETAIL:  Failing row contains (1, 1, 39, Brown, FK-001-39-BRO, 92000.00, -985).
+--- T5 Referential integrity: order line for a variant that does not exist
+psql:sql/03_constraint_tests.sql:26: ERROR:  insert or update on table "order_item" violates foreign key constraint "order_item_variant_id_fkey"
+DETAIL:  Key (variant_id)=(999999) is not present in table "product_variant".
+--- T6 Composite FK: order delivered to ANOTHER customer's address
+psql:sql/03_constraint_tests.sql:30: ERROR:  insert or update on table "customer_order" violates foreign key constraint "fk_order_address"
+DETAIL:  Key (address_id, customer_id)=(3, 1) is not present in table "address".
+--- T7 Composite FK: bespoke measurements attached to a STANDARD order
+psql:sql/03_constraint_tests.sql:34: ERROR:  insert or update on table "bespoke_spec" violates foreign key constraint "fk_bespoke_order"
+DETAIL:  Key (order_id, order_type)=(1, bespoke) is not present in table "customer_order".
+--- T8 Business rule: a customer can only have one default address
+psql:sql/03_constraint_tests.sql:38: ERROR:  duplicate key value violates unique constraint "ux_address_one_default"
+DETAIL:  Key (customer_id)=(1) already exists.
+--- T9 Business rule: a parcel cannot be delivered before it is dispatched
+psql:sql/03_constraint_tests.sql:42: ERROR:  new row for relation "delivery" violates check constraint "chk_delivery_dates"
+DETAIL:  Failing row contains (1, 1, DHL, TRK000000001, 2024-01-04 00:19:29.774639, 2024-01-03 00:19:29.774639).
+--- T10 Business rule: a successful payment must have a payment time
+psql:sql/03_constraint_tests.sql:46: ERROR:  new row for relation "payment" violates check constraint "chk_paid_at"
+DETAIL:  Failing row contains (264083, 1, FKP-TEST-1, card, 1000.00, successful, null).
+--- T11 Domain integrity: unknown order status
+psql:sql/03_constraint_tests.sql:49: ERROR:  new row for relation "customer_order" violates check constraint "customer_order_status_check"
+DETAIL:  Failing row contains (1, 4319, 5993, 2024-01-01 00:04:42.584442, standard, lost, 43700.00).
+--- Done: 11 tests, 11 expected errors above.
