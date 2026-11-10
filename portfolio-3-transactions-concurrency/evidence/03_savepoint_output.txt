@@ -1,0 +1,25 @@
+SET
+Pager usage is off.
+BEGIN
+INSERT 0 1
+bespoke order_id = 250005
+INSERT 0 1
+SAVEPOINT
+--- risky step: measurements with an 8-letter monogram (column allows 6)
+psql:sql/03_savepoint.sql:29: ERROR:  value too long for type character varying(6)
+--- undo only the failed step
+ROLLBACK
+INSERT 0 1
+UPDATE 1
+COMMIT
+--- AFTER COMMIT: order, line and measurements all saved
+ order_id | order_type | status  | total_amount 
+----------+------------+---------+--------------
+   250005 | bespoke    | pending |    107000.00
+(1 row)
+
+ order_id | foot_length_cm | foot_width_cm | leather_choice | monogram |                               notes                                
+----------+----------------+---------------+----------------+----------+--------------------------------------------------------------------
+   250005 |           27.4 |          10.2 | Italian calf   | PKU      | Customer asked for PHINEHAS – shortened to initials, confirm by DM
+(1 row)
+

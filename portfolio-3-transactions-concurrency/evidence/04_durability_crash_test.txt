@@ -1,0 +1,17 @@
+=== Durability test: a committed Finesse Klass order survives a crash
+1. starting a throwaway PostgreSQL 16 server (docker container fk-crash-test) ...
+2. session A: INSERT order FK-T1-COMMITTED ... COMMIT   -> committed
+3. session B: BEGIN; INSERT order FK-T2-NOT-COMMITTED   -> transaction still open (no COMMIT)
+4. CRASH: server killed instantly (docker kill = power cut: no clean shutdown, no final checkpoint)
+5. server started again; recovery messages from the PostgreSQL log:
+     database system is ready to accept connections
+     database system is ready to accept connections
+     database system was not properly shut down; automatic recovery in progress
+     redo starts at 0/14F2B60
+     redo done at 0/151B008 system usage: CPU: user: 0.00 s, system: 0.00 s, elapsed: 0.00 s
+     database system is ready to accept connections
+6. orders present after recovery:
+     FK-T1-COMMITTED         120100.00 paid
+   committed order present      : YES  (durability)
+   uncommitted order present    : NO   (atomicity – it was never committed)
+7. throwaway server removed

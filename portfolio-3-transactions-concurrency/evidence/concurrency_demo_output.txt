@@ -1,0 +1,149 @@
+Finesse Klass concurrency demo – PostgreSQL 18.3
+Session A = customer 101 (pid 12556), Session B = customer 202 (pid 31908)
+
+==============================================================================
+S1  PROBLEM: LOST UPDATE – the last pair is sold twice (READ COMMITTED, no locking)
+==============================================================================
+setup: stock of FK-027-44-WHI set to 1 (the last pair)
+[t+ 0.07s] A | BEGIN
+[t+ 0.07s] A | SELECT stock_qty FROM product_variant WHERE sku = 'FK-027-44-WHI'   -- A sees 1 pair
+          A |   -> [(1,)]
+[t+ 0.10s] B | BEGIN
+[t+ 0.10s] B | SELECT stock_qty FROM product_variant WHERE sku = 'FK-027-44-WHI'   -- B ALSO sees 1 pair
+          B |   -> [(1,)]
+[t+ 0.12s] A | INSERT INTO customer_order (customer_id, address_id, status) SELECT 101, address_id, 'paid' FROM address WHERE customer_id = 101 AND is_default RETURNING order_id
+          A |   -> [(250006,)]
+[t+ 0.22s] A | INSERT INTO order_item (order_id, line_no, variant_id, quantity, unit_price) SELECT 250006, 1, variant_id, 1, unit_price FROM product_variant WHERE sku = 'FK-027-44-WHI'
+[t+ 0.27s] A | INSERT INTO stock_movement (variant_id, change_qty, reason, order_id) SELECT variant_id, -1, 'sale', 250006 FROM product_variant WHERE sku = 'FK-027-44-WHI'
+[t+ 0.32s] A | UPDATE product_variant SET stock_qty = 0 WHERE sku = 'FK-027-44-WHI'   -- app writes 1-1 = 0
+[t+ 0.33s] A | COMMIT
+[t+ 0.33s] B | INSERT INTO customer_order (customer_id, address_id, status) SELECT 202, address_id, 'paid' FROM address WHERE customer_id = 202 AND is_default RETURNING order_id
+          B |   -> [(250007,)]
+[t+ 0.37s] B | INSERT INTO order_item (order_id, line_no, variant_id, quantity, unit_price) SELECT 250007, 1, variant_id, 1, unit_price FROM product_variant WHERE sku = 'FK-027-44-WHI'
+[t+ 0.39s] B | INSERT INTO stock_movement (variant_id, change_qty, reason, order_id) SELECT variant_id, -1, 'sale', 250007 FROM product_variant WHERE sku = 'FK-027-44-WHI'
+[t+ 0.40s] B | UPDATE product_variant SET stock_qty = 0 WHERE sku = 'FK-027-44-WHI'   -- B writes 1-1 = 0, overwriting A's update (lost update)
+[t+ 0.40s] B | COMMIT
+RESULT S1: stock now = 0, orders that received the last pair in this scenario = 2
+=> One physical pair, TWO paid orders. The CHECK (stock_qty >= 0) could not help: 0 is a legal value.
+
+==============================================================================
+S2  FIX 1: PESSIMISTIC LOCKING – SELECT ... FOR UPDATE
+==============================================================================
+setup: stock of FK-027-44-WHI set to 1 (the last pair)
+[t+ 0.00s] A | BEGIN
+[t+ 0.01s] A | SELECT stock_qty FROM product_variant WHERE sku = 'FK-027-44-WHI' FOR UPDATE   -- A locks the row
+          A |   -> [(1,)]
+[t+ 0.01s] B | BEGIN
+[t+ 0.01s] B | SELECT stock_qty FROM product_variant WHERE sku = 'FK-027-44-WHI' FOR UPDATE   -- B asks for the same lock ...
+          OBSERVER | session B: state=active, waiting on Lock/transactionid, blocked by pid [12556] (session A pid = 12556)
+[t+ 1.24s] A | INSERT INTO customer_order (customer_id, address_id, status) SELECT 101, address_id, 'paid' FROM address WHERE customer_id = 101 AND is_default RETURNING order_id
+          A |   -> [(250008,)]
+[t+ 1.25s] A | INSERT INTO order_item (order_id, line_no, variant_id, quantity, unit_price) SELECT 250008, 1, variant_id, 1, unit_price FROM product_variant WHERE sku = 'FK-027-44-WHI'
+[t+ 1.25s] A | INSERT INTO stock_movement (variant_id, change_qty, reason, order_id) SELECT variant_id, -1, 'sale', 250008 FROM product_variant WHERE sku = 'FK-027-44-WHI'
+[t+ 1.25s] A | UPDATE product_variant SET stock_qty = stock_qty - 1 WHERE sku = 'FK-027-44-WHI'
+[t+ 1.25s] A | COMMIT   -- releases the lock
+          B |   -> [(0,)]
+[t+ 1.26s] B | ROLLBACK   -- B now sees 0 -> 'Sorry, this size has just sold out'
+RESULT S2: stock now = 0, orders that received the last pair in this scenario = 1
+
+==============================================================================
+S3  FIX 2: ISOLATION LEVEL REPEATABLE READ – the database detects the conflict
+==============================================================================
+setup: stock of FK-027-44-WHI set to 1 (the last pair)
+[t+ 0.01s] A | BEGIN ISOLATION LEVEL REPEATABLE READ
+[t+ 0.01s] A | SELECT stock_qty FROM product_variant WHERE sku = 'FK-027-44-WHI'
+          A |   -> [(1,)]
+[t+ 0.01s] B | BEGIN ISOLATION LEVEL REPEATABLE READ
+[t+ 0.01s] B | SELECT stock_qty FROM product_variant WHERE sku = 'FK-027-44-WHI'   -- B also sees 1
+          B |   -> [(1,)]
+[t+ 0.01s] A | INSERT INTO customer_order (customer_id, address_id, status) SELECT 101, address_id, 'paid' FROM address WHERE customer_id = 101 AND is_default RETURNING order_id
+          A |   -> [(250009,)]
+[t+ 0.02s] A | INSERT INTO order_item (order_id, line_no, variant_id, quantity, unit_price) SELECT 250009, 1, variant_id, 1, unit_price FROM product_variant WHERE sku = 'FK-027-44-WHI'
+[t+ 0.02s] A | INSERT INTO stock_movement (variant_id, change_qty, reason, order_id) SELECT variant_id, -1, 'sale', 250009 FROM product_variant WHERE sku = 'FK-027-44-WHI'
+[t+ 0.02s] A | UPDATE product_variant SET stock_qty = stock_qty - 1 WHERE sku = 'FK-027-44-WHI'
+[t+ 0.02s] A | COMMIT
+[t+ 0.03s] B | UPDATE product_variant SET stock_qty = stock_qty - 1 WHERE sku = 'FK-027-44-WHI'   -- B tries to update a row changed after its snapshot
+          B |   !! SerializationFailure: could not serialize access due to concurrent update
+[t+ 0.03s] B | ROLLBACK
+          B | application retries the whole transaction:
+[t+ 0.03s] B | BEGIN ISOLATION LEVEL REPEATABLE READ
+[t+ 0.03s] B | SELECT stock_qty FROM product_variant WHERE sku = 'FK-027-44-WHI'
+          B |   -> [(0,)]
+[t+ 0.03s] B | ROLLBACK   -- retry sees 0 -> sold out, no second order
+RESULT S3: stock now = 0, orders that received the last pair in this scenario = 1
+
+==============================================================================
+S4  FIX 3: ATOMIC CONDITIONAL UPDATE – check and decrement in ONE statement
+==============================================================================
+setup: stock of FK-027-44-WHI set to 1 (the last pair)
+[t+ 0.00s] A | BEGIN
+[t+ 0.00s] B | BEGIN
+[t+ 0.01s] A | UPDATE product_variant SET stock_qty = stock_qty - 1 WHERE sku = 'FK-027-44-WHI' AND stock_qty >= 1 RETURNING stock_qty   -- A wins the pair
+          A |   -> [(0,)]
+[t+ 0.01s] B | UPDATE product_variant SET stock_qty = stock_qty - 1 WHERE sku = 'FK-027-44-WHI' AND stock_qty >= 1 RETURNING stock_qty   -- B waits for A's row lock ...
+          OBSERVER | session B: state=active, waiting on Lock/transactionid, blocked by pid [12556] (session A pid = 12556)
+[t+ 1.22s] A | INSERT INTO customer_order (customer_id, address_id, status) SELECT 101, address_id, 'paid' FROM address WHERE customer_id = 101 AND is_default RETURNING order_id
+          A |   -> [(250010,)]
+[t+ 1.22s] A | INSERT INTO order_item (order_id, line_no, variant_id, quantity, unit_price) SELECT 250010, 1, variant_id, 1, unit_price FROM product_variant WHERE sku = 'FK-027-44-WHI'
+[t+ 1.22s] A | INSERT INTO stock_movement (variant_id, change_qty, reason, order_id) SELECT variant_id, -1, 'sale', 250010 FROM product_variant WHERE sku = 'FK-027-44-WHI'
+[t+ 1.23s] A | COMMIT
+          B |   -> []
+[t+ 1.24s] B | ROLLBACK   -- 0 rows updated -> condition re-checked after A committed -> sold out
+RESULT S4: stock now = 0, orders that received the last pair in this scenario = 1
+
+==============================================================================
+S5  ISOLATION: dirty read? non-repeatable read? (price change during a customer's checkout)
+==============================================================================
+-- (a) READ COMMITTED (PostgreSQL default)
+[t+ 0.00s] A | BEGIN
+[t+ 0.00s] A | UPDATE product_variant SET unit_price = unit_price + 5000 WHERE sku = 'FK-027-44-WHI'   -- not committed yet
+[t+ 0.00s] B | BEGIN
+[t+ 0.01s] B | SELECT unit_price FROM product_variant WHERE sku = 'FK-027-44-WHI'   -- B does NOT see A's uncommitted price -> no dirty read
+          B |   -> [(Decimal('77400.00'),)]
+[t+ 0.01s] A | COMMIT
+[t+ 0.01s] B | SELECT unit_price FROM product_variant WHERE sku = 'FK-027-44-WHI'   -- same query, same transaction, NEW value -> non-repeatable read
+          B |   -> [(Decimal('82400.00'),)]
+[t+ 0.01s] B | COMMIT
+-- (b) REPEATABLE READ
+[t+ 0.01s] B | BEGIN ISOLATION LEVEL REPEATABLE READ
+[t+ 0.01s] B | SELECT unit_price FROM product_variant WHERE sku = 'FK-027-44-WHI'   -- B's snapshot is taken here
+          B |   -> [(Decimal('82400.00'),)]
+[t+ 0.02s] A | BEGIN
+[t+ 0.02s] A | UPDATE product_variant SET unit_price = unit_price - 5000 WHERE sku = 'FK-027-44-WHI'   -- price restored
+[t+ 0.02s] A | COMMIT
+[t+ 0.02s] B | SELECT unit_price FROM product_variant WHERE sku = 'FK-027-44-WHI'   -- still the snapshot value -> checkout total stays consistent
+          B |   -> [(Decimal('82400.00'),)]
+[t+ 0.03s] B | COMMIT
+[t+ 0.03s] B | SELECT unit_price FROM product_variant WHERE sku = 'FK-027-44-WHI'   -- new transaction sees the committed price
+          B |   -> [(Decimal('77400.00'),)]
+
+==============================================================================
+S6  DEADLOCK: two 2-pair orders lock the same two variants in opposite order
+==============================================================================
+[t+ 0.00s] A | BEGIN
+[t+ 0.00s] B | BEGIN
+[t+ 0.01s] A | UPDATE product_variant SET stock_qty = stock_qty - 1 WHERE sku = 'FK-087-44-BUR'   -- A locks X
+[t+ 0.01s] B | UPDATE product_variant SET stock_qty = stock_qty - 1 WHERE sku = 'FK-047-43-WHI'   -- B locks Y
+[t+ 0.01s] A | UPDATE product_variant SET stock_qty = stock_qty - 1 WHERE sku = 'FK-047-43-WHI'   -- A wants Y (held by B) ...
+[t+ 1.21s] B | UPDATE product_variant SET stock_qty = stock_qty - 1 WHERE sku = 'FK-087-44-BUR'   -- B wants X (held by A) -> cycle
+          B |   !! DeadlockDetected: deadlock detected
+=> PostgreSQL detected the cycle and aborted session B; session A could continue.
+[t+ 2.41s] B | ROLLBACK
+[t+ 2.42s] A | ROLLBACK   -- (demo only – nothing is kept)
+
+-- Fix: every transaction locks its variants in the SAME order (ascending variant_id)
+[t+ 2.42s] A | BEGIN
+[t+ 2.42s] A | SELECT variant_id, sku FROM product_variant WHERE sku IN ('FK-087-44-BUR', 'FK-047-43-WHI') ORDER BY variant_id FOR UPDATE   -- A locks both, lowest id first
+          A |   -> [(1316, 'FK-047-43-WHI'), (1716, 'FK-087-44-BUR')]
+[t+ 2.42s] B | BEGIN
+[t+ 2.43s] B | SELECT variant_id, sku FROM product_variant WHERE sku IN ('FK-047-43-WHI', 'FK-087-44-BUR') ORDER BY variant_id FOR UPDATE   -- B asks in the same order -> simply waits, no cycle
+          OBSERVER | session B: state=active, waiting on Lock/transactionid, blocked by pid [12556] (session A pid = 12556)
+[t+ 3.63s] A | ROLLBACK   -- A finishes (demo: nothing kept)
+          B |   -> [(1316, 'FK-047-43-WHI'), (1716, 'FK-087-44-BUR')]
+[t+ 3.63s] B | ROLLBACK
+=> With a consistent lock order the second transaction waits instead of deadlocking.
+
+==============================================================================
+CLEANUP: remove demo orders, restore the last pair
+==============================================================================
+deleted demo orders [250006, 250007, 250008, 250009, 250010]; FK-027-44-WHI back to stock 1, price 77400.00

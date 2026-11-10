@@ -1,0 +1,43 @@
+SET
+Pager usage is off.
+--- BEFORE: stock of the two variants
+      sku      | stock_qty 
+---------------+-----------
+ FK-047-43-WHI |        20
+ FK-087-44-BUR |        11
+(2 rows)
+
+BEGIN
+INSERT 0 1
+new order_id = 250002
+INSERT 0 1
+INSERT 0 1
+UPDATE 2
+INSERT 0 2
+UPDATE 1
+INSERT 0 1
+UPDATE 1
+COMMIT
+--- AFTER COMMIT: the order, its lines, its payment and the new stock
+ order_id | customer_id | status | total_amount 
+----------+-------------+--------+--------------
+   250002 |        1234 | paid   |    120100.00
+(1 row)
+
+ line_no |      sku      | quantity | unit_price 
+---------+---------------+----------+------------
+       1 | FK-087-44-BUR |        1 |   57200.00
+       2 | FK-047-43-WHI |        1 |   62900.00
+(2 rows)
+
+  reference   |  method  |  amount   |   status   
+--------------+----------+-----------+------------
+ FKP250002-T1 | transfer | 120100.00 | successful
+(1 row)
+
+      sku      | stock_qty 
+---------------+-----------
+ FK-047-43-WHI |        19
+ FK-087-44-BUR |        10
+(2 rows)
+

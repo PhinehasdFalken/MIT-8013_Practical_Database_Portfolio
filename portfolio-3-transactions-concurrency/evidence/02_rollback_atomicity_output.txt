@@ -1,0 +1,72 @@
+SET
+Pager usage is off.
+--- BEFORE: stock and number of orders for customer 1234
+      sku      | stock_qty 
+---------------+-----------
+ FK-011-39-BRO |         0
+ FK-087-44-BUR |        10
+(2 rows)
+
+ orders_of_customer_1234 
+-------------------------
+                      23
+(1 row)
+
+=== Story A: failure inside the transaction ===
+BEGIN
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+--- step 1: take the boot out of stock (succeeds)
+UPDATE 1
+--- inside the transaction the boot stock is already reduced:
+      sku      | stock_qty 
+---------------+-----------
+ FK-087-44-BUR |         9
+(1 row)
+
+--- step 2: take the sold-out loafer out of stock (FAILS: stock would be -1)
+psql:sql/02_rollback_atomicity.sql:37: ERROR:  new row for relation "product_variant" violates check constraint "product_variant_stock_qty_check"
+DETAIL:  Failing row contains (28, 11, 39, Brown, FK-011-39-BRO, 79000.00, -1).
+--- step 3: any further statement is refused – the transaction is aborted
+psql:sql/02_rollback_atomicity.sql:40: ERROR:  current transaction is aborted, commands ignored until end of transaction block
+ROLLBACK
+--- AFTER ROLLBACK: boot stock is back, the order and its lines do not exist
+      sku      | stock_qty 
+---------------+-----------
+ FK-011-39-BRO |         0
+ FK-087-44-BUR |        10
+(2 rows)
+
+ order_rows 
+------------
+          0
+(1 row)
+
+ line_rows 
+-----------
+         0
+(1 row)
+
+=== Story B: customer changes her mind – explicit ROLLBACK ===
+BEGIN
+INSERT 0 1
+UPDATE 1
+--- pair reserved inside the transaction; customer says "no, cancel it"
+ROLLBACK
+ order_rows 
+------------
+          0
+(1 row)
+
+      sku      | stock_qty 
+---------------+-----------
+ FK-087-44-BUR |        10
+(1 row)
+
+ orders_of_customer_1234 
+-------------------------
+                      23
+(1 row)
+
+--- Note: identity numbers used by rolled-back inserts are not reused (a gap in order_id is normal).
