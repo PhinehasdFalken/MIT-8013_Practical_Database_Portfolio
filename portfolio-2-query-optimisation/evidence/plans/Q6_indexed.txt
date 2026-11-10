@@ -1,0 +1,31 @@
+-- Q6 [indexed] Stock control: variants with 2 or fewer pairs left
+-- SELECT p.product_name, v.size_eu, v.colour, v.stock_qty
+FROM product_variant v
+JOIN product p ON p.product_id = v.product_id
+WHERE v.stock_qty <= 2
+ORDER BY v.stock_qty, p.product_name
+
+Sort  (cost=49.71..50.44 rows=293 width=33) (actual time=3.058..3.120 rows=293.00 loops=1)
+  Sort Key: v.stock_qty, p.product_name
+  Sort Method: quicksort  Memory: 40kB
+  Buffers: shared hit=26
+  ->  Hash Join  (cost=11.25..37.70 rows=293 width=33) (actual time=0.150..0.550 rows=293.00 loops=1)
+        Hash Cond: (v.product_id = p.product_id)
+        Buffers: shared hit=26
+        ->  Bitmap Heap Scan on product_variant v  (cost=6.55..32.21 rows=293 width=16) (actual time=0.038..0.296 rows=293.00 loops=1)
+              Recheck Cond: (stock_qty <= 2)
+              Heap Blocks: exact=22
+              Buffers: shared hit=24
+              ->  Bitmap Index Scan on idx_variant_stock  (cost=0.00..6.48 rows=293 width=0) (actual time=0.018..0.019 rows=293.00 loops=1)
+                    Index Cond: (stock_qty <= 2)
+                    Index Searches: 1
+                    Buffers: shared hit=2
+        ->  Hash  (cost=3.20..3.20 rows=120 width=25) (actual time=0.103..0.104 rows=120.00 loops=1)
+              Buckets: 1024  Batches: 1  Memory Usage: 15kB
+              Buffers: shared hit=2
+              ->  Seq Scan on product p  (cost=0.00..3.20 rows=120 width=25) (actual time=0.032..0.052 rows=120.00 loops=1)
+                    Buffers: shared hit=2
+Planning:
+  Buffers: shared hit=10
+Planning Time: 0.488 ms
+Execution Time: 3.241 ms

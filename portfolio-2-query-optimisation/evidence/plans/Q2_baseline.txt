@@ -1,0 +1,47 @@
+-- Q2 [baseline] Operations dashboard: open orders from the last 30 days with customer and state
+-- SELECT o.order_id, o.order_date, o.status, c.first_name, c.last_name, c.phone, s.state_name
+FROM customer_order o
+JOIN customer c ON c.customer_id = o.customer_id
+JOIN address  a ON a.address_id  = o.address_id
+JOIN state    s ON s.state_id    = a.state_id
+WHERE o.status IN ('pending', 'paid', 'in_production')
+  AND o.order_date >= timestamp '2026-10-02'
+ORDER BY o.order_date
+
+Gather Merge  (cost=6576.72..6584.81 rows=71 width=58) (actual time=103.191..113.916 rows=2596.00 loops=1)
+  Workers Planned: 1
+  Workers Launched: 1
+  Buffers: shared hit=18160
+  ->  Sort  (cost=5576.71..5576.81 rows=42 width=58) (actual time=48.313..48.430 rows=1298.00 loops=2)
+        Sort Key: o.order_date
+        Sort Method: quicksort  Memory: 295kB
+        Buffers: shared hit=18160
+        Worker 0:  Sort Method: quicksort  Memory: 25kB
+        ->  Hash Join  (cost=2.41..5575.57 rows=42 width=58) (actual time=32.116..47.139 rows=1298.00 loops=2)
+              Hash Cond: (a.state_id = s.state_id)
+              Buffers: shared hit=18153
+              ->  Nested Loop  (cost=0.58..5573.62 rows=42 width=54) (actual time=32.069..46.215 rows=1298.00 loops=2)
+                    Buffers: shared hit=18152
+                    ->  Nested Loop  (cost=0.29..5264.93 rows=42 width=56) (actual time=32.059..39.949 rows=1298.00 loops=2)
+                          Buffers: shared hit=10364
+                          ->  Parallel Seq Scan on customer_order o  (cost=0.00..4965.71 rows=42 width=33) (actual time=32.033..33.471 rows=1298.00 loops=2)
+                                Filter: ((order_date >= '2026-10-02 00:00:00'::timestamp without time zone) AND ((status)::text = ANY ('{pending,paid,in_production}'::text[])))
+                                Rows Removed by Filter: 123702
+                                Buffers: shared hit=2576
+                          ->  Index Scan using customer_pkey on customer c  (cost=0.29..7.12 rows=1 width=31) (actual time=0.004..0.004 rows=1.00 loops=2596)
+                                Index Cond: (customer_id = o.customer_id)
+                                Index Searches: 2596
+                                Buffers: shared hit=7788
+                    ->  Index Scan using uq_address_owner on address a  (cost=0.29..7.35 rows=1 width=6) (actual time=0.004..0.004 rows=1.00 loops=2596)
+                          Index Cond: (address_id = o.address_id)
+                          Index Searches: 2596
+                          Buffers: shared hit=7788
+              ->  Hash  (cost=1.37..1.37 rows=37 width=8) (actual time=0.072..0.073 rows=37.00 loops=1)
+                    Buckets: 1024  Batches: 1  Memory Usage: 10kB
+                    Buffers: shared hit=1
+                    ->  Seq Scan on state s  (cost=0.00..1.37 rows=37 width=8) (actual time=0.041..0.048 rows=37.00 loops=1)
+                          Buffers: shared hit=1
+Planning:
+  Buffers: shared hit=17
+Planning Time: 0.586 ms
+Execution Time: 114.304 ms

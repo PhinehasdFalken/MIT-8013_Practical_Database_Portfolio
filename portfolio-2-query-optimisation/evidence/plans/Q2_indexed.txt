@@ -1,0 +1,45 @@
+-- Q2 [indexed] Operations dashboard: open orders from the last 30 days with customer and state
+-- SELECT o.order_id, o.order_date, o.status, c.first_name, c.last_name, c.phone, s.state_name
+FROM customer_order o
+JOIN customer c ON c.customer_id = o.customer_id
+JOIN address  a ON a.address_id  = o.address_id
+JOIN state    s ON s.state_id    = a.state_id
+WHERE o.status IN ('pending', 'paid', 'in_production')
+  AND o.order_date >= timestamp '2026-10-02'
+ORDER BY o.order_date
+
+Sort  (cost=1386.38..1386.59 rows=83 width=58) (actual time=34.365..34.574 rows=2596.00 loops=1)
+  Sort Key: o.order_date
+  Sort Method: quicksort  Memory: 295kB
+  Buffers: shared hit=15820
+  ->  Nested Loop  (cost=1.15..1383.73 rows=83 width=58) (actual time=0.120..31.842 rows=2596.00 loops=1)
+        Buffers: shared hit=15820
+        ->  Nested Loop  (cost=1.00..1375.78 rows=83 width=54) (actual time=0.096..28.057 rows=2596.00 loops=1)
+              Buffers: shared hit=15746
+              ->  Nested Loop  (cost=0.71..778.26 rows=83 width=56) (actual time=0.080..15.066 rows=2596.00 loops=1)
+                    Buffers: shared hit=7958
+                    ->  Index Scan using idx_order_status_date on customer_order o  (cost=0.42..196.74 rows=83 width=33) (actual time=0.056..1.737 rows=2596.00 loops=1)
+                          Index Cond: (((status)::text = ANY ('{pending,paid,in_production}'::text[])) AND (order_date >= '2026-10-02 00:00:00'::timestamp without time zone))
+                          Index Searches: 1
+                          Buffers: shared hit=170
+                    ->  Index Scan using customer_pkey on customer c  (cost=0.29..7.01 rows=1 width=31) (actual time=0.004..0.004 rows=1.00 loops=2596)
+                          Index Cond: (customer_id = o.customer_id)
+                          Index Searches: 2596
+                          Buffers: shared hit=7788
+              ->  Index Scan using uq_address_owner on address a  (cost=0.29..7.20 rows=1 width=6) (actual time=0.004..0.004 rows=1.00 loops=2596)
+                    Index Cond: (address_id = o.address_id)
+                    Index Searches: 2596
+                    Buffers: shared hit=7788
+        ->  Memoize  (cost=0.15..0.17 rows=1 width=8) (actual time=0.001..0.001 rows=1.00 loops=2596)
+              Cache Key: a.state_id
+              Cache Mode: logical
+              Hits: 2559  Misses: 37  Evictions: 0  Overflows: 0  Memory Usage: 4kB
+              Buffers: shared hit=74
+              ->  Index Scan using state_pkey on state s  (cost=0.14..0.16 rows=1 width=8) (actual time=0.005..0.005 rows=1.00 loops=37)
+                    Index Cond: (state_id = a.state_id)
+                    Index Searches: 37
+                    Buffers: shared hit=74
+Planning:
+  Buffers: shared hit=25
+Planning Time: 0.986 ms
+Execution Time: 34.829 ms

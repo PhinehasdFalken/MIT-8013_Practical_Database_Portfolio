@@ -1,0 +1,11 @@
+-- Q4 [indexed] Finance: all payment attempts for one order
+-- SELECT payment_id, reference, method, amount, status, paid_at
+FROM payment
+WHERE order_id = 182733
+
+Index Scan using idx_payment_order_hash on payment  (cost=0.00..8.02 rows=1 width=48) (actual time=0.013..0.015 rows=1.00 loops=1)
+  Index Cond: (order_id = 182733)
+  Index Searches: 1
+  Buffers: shared hit=2
+Planning Time: 0.131 ms
+Execution Time: 0.034 ms

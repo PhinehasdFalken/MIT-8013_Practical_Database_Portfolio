@@ -1,0 +1,65 @@
+-- Q3 [baseline] Management report: monthly revenue per category, Jan–Oct 2026
+-- SELECT date_trunc('month', o.order_date)::date AS month,
+       cat.category_name,
+       sum(oi.quantity * oi.unit_price)        AS revenue,
+       count(DISTINCT o.order_id)              AS orders
+FROM customer_order o
+JOIN order_item      oi  ON oi.order_id    = o.order_id
+JOIN product_variant v   ON v.variant_id   = oi.variant_id
+JOIN product         p   ON p.product_id   = v.product_id
+JOIN category        cat ON cat.category_id = p.category_id
+WHERE o.order_date >= timestamp '2026-01-01'
+  AND o.order_date <  timestamp '2026-11-01'
+  AND o.status <> 'cancelled'
+GROUP BY 1, 2
+HAVING sum(oi.quantity * oi.unit_price) > 0
+ORDER BY 1, 2
+
+GroupAggregate  (cost=26290.46..29542.58 rows=31728 width=54) (actual time=1038.340..1171.691 rows=60.00 loops=1)
+  Group Key: ((date_trunc('month'::text, o.order_date))::date), cat.category_name
+  Filter: (sum(((oi.quantity)::numeric * oi.unit_price)) > '0'::numeric)
+  Buffers: shared hit=5114, temp read=517 written=518
+  ->  Sort  (cost=26290.46..26528.42 rows=95184 width=30) (actual time=1036.487..1073.808 rows=94625.00 loops=1)
+        Sort Key: ((date_trunc('month'::text, o.order_date))::date), cat.category_name, o.order_id
+        Sort Method: external merge  Disk: 4136kB
+        Buffers: shared hit=5114, temp read=517 written=518
+        ->  Hash Join  (cost=7903.48..16140.99 rows=95184 width=30) (actual time=228.239..582.820 rows=94625.00 loops=1)
+              Hash Cond: (p.category_id = cat.category_id)
+              Buffers: shared hit=5114
+              ->  Hash Join  (cost=7902.35..15237.59 rows=95184 width=26) (actual time=228.176..478.342 rows=94625.00 loops=1)
+                    Hash Cond: (v.product_id = p.product_id)
+                    Buffers: shared hit=5113
+                    ->  Hash Join  (cost=7897.65..14974.21 rows=95184 width=28) (actual time=228.095..414.683 rows=94625.00 loops=1)
+                          Hash Cond: (oi.variant_id = v.variant_id)
+                          Buffers: shared hit=5111
+                          ->  Hash Join  (cost=7821.65..14647.90 rows=95184 width=28) (actual time=226.833..342.747 rows=94625.00 loops=1)
+                                Hash Cond: (oi.order_id = o.order_id)
+                                Buffers: shared hit=5089
+                                ->  Seq Scan on order_item oi  (cost=0.00..5929.43 rows=341643 width=20) (actual time=0.031..47.093 rows=341643.00 loops=1)
+                                      Buffers: shared hit=2513
+                                ->  Hash  (cost=6951.00..6951.00 rows=69652 width=16) (actual time=135.317..135.319 rows=69223.00 loops=1)
+                                      Buckets: 131072  Batches: 1  Memory Usage: 4269kB
+                                      Buffers: shared hit=2576
+                                      ->  Seq Scan on customer_order o  (cost=0.00..6951.00 rows=69652 width=16) (actual time=58.866..102.133 rows=69223.00 loops=1)
+                                            Filter: ((order_date >= '2026-01-01 00:00:00'::timestamp without time zone) AND (order_date < '2026-11-01 00:00:00'::timestamp without time zone) AND ((status)::text <> 'cancelled'::text))
+                                            Rows Removed by Filter: 180777
+                                            Buffers: shared hit=2576
+                          ->  Hash  (cost=46.00..46.00 rows=2400 width=8) (actual time=1.218..1.219 rows=2400.00 loops=1)
+                                Buckets: 4096  Batches: 1  Memory Usage: 126kB
+                                Buffers: shared hit=22
+                                ->  Seq Scan on product_variant v  (cost=0.00..46.00 rows=2400 width=8) (actual time=0.014..0.474 rows=2400.00 loops=1)
+                                      Buffers: shared hit=22
+                    ->  Hash  (cost=3.20..3.20 rows=120 width=6) (actual time=0.076..0.077 rows=120.00 loops=1)
+                          Buckets: 1024  Batches: 1  Memory Usage: 13kB
+                          Buffers: shared hit=2
+                          ->  Seq Scan on product p  (cost=0.00..3.20 rows=120 width=6) (actual time=0.021..0.042 rows=120.00 loops=1)
+                                Buffers: shared hit=2
+              ->  Hash  (cost=1.06..1.06 rows=6 width=12) (actual time=0.049..0.050 rows=6.00 loops=1)
+                    Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                    Buffers: shared hit=1
+                    ->  Seq Scan on category cat  (cost=0.00..1.06 rows=6 width=12) (actual time=0.037..0.039 rows=6.00 loops=1)
+                          Buffers: shared hit=1
+Planning:
+  Buffers: shared hit=36
+Planning Time: 1.576 ms
+Execution Time: 1201.537 ms

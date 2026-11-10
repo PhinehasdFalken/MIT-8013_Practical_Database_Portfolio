@@ -1,0 +1,27 @@
+-- Q6 [baseline] Stock control: variants with 2 or fewer pairs left
+-- SELECT p.product_name, v.size_eu, v.colour, v.stock_qty
+FROM product_variant v
+JOIN product p ON p.product_id = v.product_id
+WHERE v.stock_qty <= 2
+ORDER BY v.stock_qty, p.product_name
+
+Sort  (cost=69.50..70.23 rows=293 width=33) (actual time=1.981..2.004 rows=293.00 loops=1)
+  Sort Key: v.stock_qty, p.product_name
+  Sort Method: quicksort  Memory: 40kB
+  Buffers: shared hit=24
+  ->  Hash Join  (cost=4.70..57.49 rows=293 width=33) (actual time=0.099..0.710 rows=293.00 loops=1)
+        Hash Cond: (v.product_id = p.product_id)
+        Buffers: shared hit=24
+        ->  Seq Scan on product_variant v  (cost=0.00..52.00 rows=293 width=16) (actual time=0.024..0.466 rows=293.00 loops=1)
+              Filter: (stock_qty <= 2)
+              Rows Removed by Filter: 2107
+              Buffers: shared hit=22
+        ->  Hash  (cost=3.20..3.20 rows=120 width=25) (actual time=0.068..0.069 rows=120.00 loops=1)
+              Buckets: 1024  Batches: 1  Memory Usage: 15kB
+              Buffers: shared hit=2
+              ->  Seq Scan on product p  (cost=0.00..3.20 rows=120 width=25) (actual time=0.015..0.037 rows=120.00 loops=1)
+                    Buffers: shared hit=2
+Planning:
+  Buffers: shared hit=10
+Planning Time: 0.357 ms
+Execution Time: 2.057 ms

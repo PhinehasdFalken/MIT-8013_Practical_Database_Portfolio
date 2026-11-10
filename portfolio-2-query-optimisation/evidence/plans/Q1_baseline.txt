@@ -1,0 +1,20 @@
+-- Q1 [baseline] Customer-service lookup: one customer's order history
+-- SELECT o.order_id, o.order_date, o.status, o.total_amount
+FROM customer_order o
+WHERE o.customer_id = 1234
+ORDER BY o.order_date DESC
+
+Sort  (cost=5415.16..5415.18 rows=8 width=31) (actual time=68.442..79.451 rows=22.00 loops=1)
+  Sort Key: order_date DESC
+  Sort Method: quicksort  Memory: 26kB
+  Buffers: shared hit=2576
+  ->  Gather  (cost=1000.00..5415.04 rows=8 width=31) (actual time=1.331..79.399 rows=22.00 loops=1)
+        Workers Planned: 1
+        Workers Launched: 1
+        Buffers: shared hit=2576
+        ->  Parallel Seq Scan on customer_order o  (cost=0.00..4414.24 rows=5 width=31) (actual time=0.542..18.915 rows=11.00 loops=2)
+              Filter: (customer_id = 1234)
+              Rows Removed by Filter: 124989
+              Buffers: shared hit=2576
+Planning Time: 0.110 ms
+Execution Time: 79.490 ms

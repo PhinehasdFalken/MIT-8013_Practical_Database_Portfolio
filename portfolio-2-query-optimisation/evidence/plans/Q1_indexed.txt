@@ -1,0 +1,20 @@
+-- Q1 [indexed] Customer-service lookup: one customer's order history
+-- SELECT o.order_id, o.order_date, o.status, o.total_amount
+FROM customer_order o
+WHERE o.customer_id = 1234
+ORDER BY o.order_date DESC
+
+Sort  (cost=35.36..35.38 rows=8 width=31) (actual time=0.091..0.093 rows=22.00 loops=1)
+  Sort Key: order_date DESC
+  Sort Method: quicksort  Memory: 26kB
+  Buffers: shared hit=25
+  ->  Bitmap Heap Scan on customer_order o  (cost=4.48..35.24 rows=8 width=31) (actual time=0.046..0.075 rows=22.00 loops=1)
+        Recheck Cond: (customer_id = 1234)
+        Heap Blocks: exact=22
+        Buffers: shared hit=25
+        ->  Bitmap Index Scan on idx_order_customer_date  (cost=0.00..4.48 rows=8 width=0) (actual time=0.017..0.018 rows=22.00 loops=1)
+              Index Cond: (customer_id = 1234)
+              Index Searches: 1
+              Buffers: shared hit=3
+Planning Time: 0.170 ms
+Execution Time: 0.124 ms

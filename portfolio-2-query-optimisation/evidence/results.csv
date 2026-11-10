@@ -1,0 +1,13 @@
+query,phase,median_ms,min_ms,max_ms,total_cost,est_rows,actual_rows,buffer_hits,blocks_read,access_paths
+Q1,baseline,98.37,88.103,140.965,5415.18,8,22.0,2576,0,Seq Scan on customer_order
+Q2,baseline,123.456,87.944,174.376,6584.81,71,2596.0,18160,0,Seq Scan on customer_order; Index Scan on customer (customer_pkey); Index Scan on address (uq_address_owner); Seq Scan on state
+Q3,baseline,1239.319,1118.606,1593.578,29542.58,31728,60.0,5114,0,Seq Scan on order_item; Seq Scan on customer_order; Seq Scan on product_variant; Seq Scan on product; Seq Scan on category
+Q4,baseline,126.911,74.249,170.252,5883.88,1,1.0,2942,0,Seq Scan on payment
+Q5,baseline,211.579,198.211,262.087,12633.13,10,10.0,5137,0,Seq Scan on order_item; Seq Scan on customer_order; Seq Scan on product_variant; Seq Scan on product
+Q6,baseline,2.065,1.921,2.201,70.23,293,293.0,24,0,Seq Scan on product_variant; Seq Scan on product
+Q1,indexed,0.127,0.117,0.194,35.38,8,22.0,25,0,Bitmap Heap Scan on customer_order; Bitmap Index Scan (idx_order_customer_date)
+Q2,indexed,52.927,27.986,105.495,1386.59,83,2596.0,15820,0,Index Scan on customer_order (idx_order_status_date); Index Scan on customer (customer_pkey); Index Scan on address (uq_address_owner); Index Scan on state (state_pkey)
+Q3,indexed,1470.204,1426.079,2997.507,25988.19,31992,60.0,3500,0,Seq Scan on order_item; Index Scan on customer_order (idx_order_date); Seq Scan on product_variant; Seq Scan on product; Seq Scan on category
+Q4,indexed,0.054,0.034,0.098,8.02,1,1.0,2,0,Index Scan on payment (idx_payment_order_hash)
+Q5,indexed,204.259,194.063,336.964,8666.38,10,10.0,2825,0,Seq Scan on order_item; Index Scan on customer_order (idx_order_date); Seq Scan on product_variant; Seq Scan on product
+Q6,indexed,2.568,1.527,4.043,50.44,293,293.0,26,0,Bitmap Heap Scan on product_variant; Bitmap Index Scan (idx_variant_stock); Seq Scan on product

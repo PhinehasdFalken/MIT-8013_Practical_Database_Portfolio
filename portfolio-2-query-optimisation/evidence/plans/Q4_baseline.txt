@@ -1,0 +1,15 @@
+-- Q4 [baseline] Finance: all payment attempts for one order
+-- SELECT payment_id, reference, method, amount, status, paid_at
+FROM payment
+WHERE order_id = 182733
+
+Gather  (cost=1000.00..5883.88 rows=1 width=48) (actual time=75.438..287.633 rows=1.00 loops=1)
+  Workers Planned: 1
+  Workers Launched: 1
+  Buffers: shared hit=2942
+  ->  Parallel Seq Scan on payment  (cost=0.00..4883.78 rows=1 width=48) (actual time=37.444..46.043 rows=0.50 loops=2)
+        Filter: (order_id = 182733)
+        Rows Removed by Filter: 132040
+        Buffers: shared hit=2942
+Planning Time: 0.161 ms
+Execution Time: 287.682 ms
