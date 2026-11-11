@@ -1,0 +1,47 @@
+Redis 7.0.15 – Finesse Klass key-value demo
+
+=== K1  Shopping cart for customer 1234 (Ngozi) – HASH: field = SKU, value = quantity
+redis> HSET cart:1234 FK-087-44-BUR 1
+       1
+redis> HSET cart:1234 FK-047-43-WHI 1
+       1
+redis> HINCRBY cart:1234 FK-047-43-WHI 1
+       2
+redis> HGETALL cart:1234
+       {'FK-087-44-BUR': '1', 'FK-047-43-WHI': '2'}
+redis> EXPIRE cart:1234 172800
+       True
+redis> TTL cart:1234
+       172800
+redis> HDEL cart:1234 FK-087-44-BUR
+       1
+redis> HGETALL cart:1234
+       {'FK-047-43-WHI': '2'}
+-> At checkout the cart is turned into an ORDER inside a PostgreSQL transaction (Portfolio 3),
+   then deleted. Losing a cart in a crash is acceptable; losing an order is not.
+
+=== K2  Drop day: 'Lekki Court Sneaker – Limited White', 5 pairs, 8 buyers at the same moment
+redis> SET drop:FK-LTD-01:stock 5
+       True
+8 concurrent DECR calls -> sold to 5: ['Amaka', 'Kemi', 'Musa', 'Obinna', 'Tunde']
+                          refused 3: ['Femi', 'Halima', 'Zainab']
+redis> GET drop:FK-LTD-01:stock
+       0
+-> Exactly 5 pairs sold, never 6: Redis executes each command one at a time, so DECR is atomic.
+   (Same guarantee as the atomic conditional UPDATE in Portfolio 3 S4, but in memory.)
+
+=== K3  Cache-aside for a product page (key product:<id>, JSON value, 300 s expiry)
+request 1: cache MISS   44.32 ms
+request 2: cache HIT     0.92 ms
+request 3: cache HIT     0.63 ms
+redis> TTL product:87
+       300
+-> First request builds the page and stores it; later requests are served from memory until it expires.
+   Expiry gives EVENTUAL consistency: a price change is visible on the page within 300 s at most.
+
+=== Keys in this demo
+_kombu.binding.celery      type=set     ttl=-1
+_kombu.binding.celeryev    type=set     ttl=-1
+cart:1234                  type=hash    ttl=172800
+drop:FK-LTD-01:stock       type=string  ttl=-1
+product:87                 type=string  ttl=300

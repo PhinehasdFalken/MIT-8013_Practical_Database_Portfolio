@@ -1,0 +1,26 @@
+
+======================================================================
+I1  BEFORE indexing – every query is a COLLSCAN (full collection scan)
+======================================================================
+M1 order history (customer 1234)   plan=SORT <- COLLSCAN                               docsExamined= 250002 keysExamined=     0 returned=   24 time=241 ms
+Q2 open orders, last 30 days       plan=COLLSCAN                                       docsExamined= 250002 keysExamined=     0 returned= 2598 time=125 ms
+lookup product by variant SKU      plan=COLLSCAN                                       docsExamined=    120 keysExamined=     0 returned=    1 time=0 ms
+
+======================================================================
+I2  AFTER indexing – IXSCAN on B-tree indexes (same design rules as Portfolio 2)
+======================================================================
+M1 order history (customer 1234)   plan=FETCH <- IXSCAN(ix_customer_date)              docsExamined=     24 keysExamined=    24 returned=   24 time=3 ms
+Q2 open orders, last 30 days       plan=FETCH <- IXSCAN(ix_status_date)                docsExamined=   2598 keysExamined=  2598 returned= 2598 time=6 ms
+lookup product by variant SKU      plan=FETCH <- IXSCAN(ix_variant_sku)                docsExamined=      1 keysExamined=     1 returned=    1 time=0 ms
+
+======================================================================
+I3  Indexes now on the collections
+======================================================================
+orders   _id_ {"_id":1}
+orders   ix_customer_date {"customer.id":1,"order_date":-1}
+orders   ix_status_date {"status":1,"order_date":1}
+products _id_ {"_id":1} 
+products ix_variant_sku {"variants.sku":1} unique
+
+Note: 'variants.sku' is a MULTIKEY index – MongoDB indexes every element of the embedded array,
+so a SKU inside any product document is found directly, like the UNIQUE(sku) constraint in Portfolio 1.

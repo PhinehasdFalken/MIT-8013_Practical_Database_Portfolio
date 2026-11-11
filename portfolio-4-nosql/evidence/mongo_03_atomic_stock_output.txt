@@ -1,0 +1,25 @@
+
+======================================================================
+A1  Setup: FK-027-44-WHI has 1 pair left
+======================================================================
+
+======================================================================
+A2  Two customers try to buy it
+======================================================================
+Kemi     matched=1 modified=1 -> SOLD to Kemi
+Halima   matched=0 modified=0 -> sold out, no order created
+stock now: 0
+
+======================================================================
+A3  The schema validator is a second safety net: stock can never go below 0
+======================================================================
+REJECTED: Document failed validation
+stock still: 0
+
+======================================================================
+A4  Limitation (and why payments stay in PostgreSQL)
+======================================================================
+A sale touches the PRODUCT document (stock) AND creates an ORDER document. Those are TWO documents.
+Atomicity across several documents needs a multi-document transaction, which in MongoDB requires a
+replica set and costs performance - the BASE trade-off described in the course. Finesse Klass therefore
+keeps orders/payments in the ACID relational database (Portfolio 3) and uses MongoDB for the catalogue.

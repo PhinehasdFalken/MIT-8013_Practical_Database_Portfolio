@@ -1,0 +1,377 @@
+
+======================================================================
+D1  One PRODUCT document – variants embedded, attributes differ by category
+======================================================================
+{
+  _id: 87,
+  name: 'Banana Island Chelsea Boot',
+  category: 'Boots',
+  material: 'Patent leather',
+  attributes: {
+    construction: 'Goodyear-welted',
+    shaft_height_cm: 17,
+    closure: 'elastic side panels'
+  },
+  variants: [
+    {
+      sku: 'FK-087-39-BUR',
+      size_eu: 39,
+      colour: 'Burgundy',
+      price: Decimal128('57200.00'),
+      stock: 16
+    },
+    {
+      sku: 'FK-087-39-NAV',
+      size_eu: 39,
+      colour: 'Navy',
+      price: Decimal128('57200.00'),
+      stock: 0
+    },
+    {
+      sku: 'FK-087-39-WHI',
+      size_eu: 39,
+      colour: 'White',
+      price: Decimal128('57200.00'),
+      stock: 13
+    }
+  ]
+}
+--- a product from another category has DIFFERENT attribute fields (schema flexibility):
+{
+  name: 'Banana Island Court Sneaker',
+  attributes: {
+    sole: 'rubber cupsole',
+    closure: 'laces',
+    lining: 'leather'
+  }
+}
+
+======================================================================
+D2  One ORDER document – items, payments, delivery (and bespoke measurements) embedded
+======================================================================
+{
+  _id: 11,
+  order_date: ISODate('2024-01-01T01:01:37.355Z'),
+  type: 'bespoke',
+  status: 'delivered',
+  total: Decimal128('52700.00'),
+  customer: {
+    id: 13597,
+    name: 'Halima Akande',
+    phone: '+2348071095179'
+  },
+  ship_to: {
+    street: '145 Aba Road',
+    city: 'Lagos',
+    state: 'Lagos',
+    region: 'South-West'
+  },
+  items: [
+    {
+      line_no: 1,
+      sku: 'FK-017-46-WHI',
+      product: 'Zaria Penny Loafer',
+      category: 'Loafers',
+      size_eu: 46,
+      colour: 'White',
+      qty: 1,
+      unit_price: Decimal128('52700.00')
+    }
+  ],
+  payments: [
+    {
+      reference: 'FKP11-1',
+      method: 'card',
+      amount: Decimal128('52700.00'),
+      status: 'failed',
+      paid_at: null
+    },
+    {
+      reference: 'FKP11-2',
+      method: 'ussd',
+      amount: Decimal128('52700.00'),
+      status: 'successful',
+      paid_at: ISODate('2024-01-01T04:48:11.758Z')
+    }
+  ],
+  delivery: {
+    courier: 'GIGL',
+    tracking_no: 'TRK000000011',
+    dispatched_at: ISODate('2024-01-16T04:33:20.878Z'),
+    delivered_at: ISODate('2024-01-23T23:47:54.368Z')
+  },
+  bespoke: {
+    foot_length_cm: 27.9,
+    foot_width_cm: 10.8,
+    leather: 'Suede',
+    monogram: '651',
+    notes: 'Wide fit on left foot'
+  }
+}
+
+======================================================================
+D3  Collection sizes
+======================================================================
+products   120
+customers  40000
+orders     250002
+
+======================================================================
+M1  Customer-service lookup: order history of customer 1234 (≈ P2 Q1, but no joins needed)
+======================================================================
+{
+  _id: 250005,
+  order_date: ISODate('2026-11-10T13:22:12.983Z'),
+  status: 'pending',
+  total: Decimal128('107000.00'),
+  items: [
+    {
+      product: 'Ikoyi Penny Loafer',
+      size_eu: 42
+    }
+  ]
+}
+{
+  _id: 250002,
+  order_date: ISODate('2026-11-10T13:20:45.546Z'),
+  status: 'paid',
+  total: Decimal128('120100.00'),
+  items: [
+    {
+      product: 'Banana Island Chelsea Boot',
+      size_eu: 44
+    },
+    {
+      product: 'Banana Island Court Sneaker',
+      size_eu: 43
+    }
+  ]
+}
+{
+  _id: 247795,
+  order_date: ISODate('2026-10-22T20:21:59.958Z'),
+  status: 'delivered',
+  total: Decimal128('196400.00'),
+  items: [
+    {
+      product: 'Wuse Court Sneaker',
+      size_eu: 46
+    },
+    {
+      product: 'Awka Chelsea Boot',
+      size_eu: 44
+    }
+  ]
+}
+{
+  _id: 241988,
+  order_date: ISODate('2026-09-29T13:39:07.965Z'),
+  status: 'cancelled',
+  total: Decimal128('42800.00'),
+  items: [
+    {
+      product: 'Bodija Chelsea Boot',
+      size_eu: 39
+    }
+  ]
+}
+{
+  _id: 219868,
+  order_date: ISODate('2026-06-30T03:47:17.754Z'),
+  status: 'cancelled',
+  total: Decimal128('25400.00'),
+  items: [
+    {
+      product: 'Ikeja Chelsea Boot',
+      size_eu: 42
+    }
+  ]
+}
+
+======================================================================
+M2  Catalogue: Loafers in size 42 that are in stock ($elemMatch on the embedded array)
+======================================================================
+{
+  name: 'Ikoyi Penny Loafer',
+  in_stock_42: [
+    {
+      colour: 'Brown',
+      stock: 2
+    },
+    {
+      colour: 'Burgundy',
+      stock: 1
+    },
+    {
+      colour: 'Tan',
+      stock: 13
+    }
+  ]
+}
+{
+  name: 'Lekki Penny Loafer',
+  in_stock_42: [
+    {
+      colour: 'Burgundy',
+      stock: 15
+    },
+    {
+      colour: 'Tan',
+      stock: 20
+    }
+  ]
+}
+{
+  name: 'Maitama Penny Loafer',
+  in_stock_42: [
+    {
+      colour: 'Burgundy',
+      stock: 14
+    },
+    {
+      colour: 'Navy',
+      stock: 17
+    },
+    {
+      colour: 'White',
+      stock: 4
+    }
+  ]
+}
+{
+  name: 'Asokoro Penny Loafer',
+  in_stock_42: [
+    {
+      colour: 'Navy',
+      stock: 3
+    },
+    {
+      colour: 'White',
+      stock: 18
+    }
+  ]
+}
+{
+  name: 'Ikeja Penny Loafer',
+  in_stock_42: [
+    {
+      colour: 'Black',
+      stock: 10
+    },
+    {
+      colour: 'Brown',
+      stock: 15
+    },
+    {
+      colour: 'White',
+      stock: 1
+    }
+  ]
+}
+
+======================================================================
+M3  Management report: monthly revenue per category, Jan–Oct 2026 (≈ P2 Q3, aggregation pipeline)
+======================================================================
+2026-01 Boots              142588000.00
+2026-01 Loafers            136349100.00
+2026-01 Mules              134512300.00
+2026-01 Oxfords & Brogues  147700200.00
+2026-01 Sandals & Slides   118784600.00
+2026-01 Sneakers           129397100.00
+2026-02 Boots              129395100.00
+2026-02 Loafers            116730500.00
+2026-02 Mules              118196600.00
+2026-02 Oxfords & Brogues  128614000.00
+2026-02 Sandals & Slides   120924400.00
+2026-02 Sneakers           124096400.00
+
+======================================================================
+M4  Merchandising: top 5 best-selling variants since 2026-08-03 (≈ P2 Q5)
+======================================================================
+{
+  _id: {
+    product: 'Banana Island Wingtip Brogue',
+    size: 46,
+    colour: 'White'
+  },
+  pairs_sold: 31
+}
+{
+  _id: {
+    product: 'Owerri Penny Loafer',
+    size: 43,
+    colour: 'Burgundy'
+  },
+  pairs_sold: 27
+}
+{
+  _id: {
+    product: 'Ikeja Chelsea Boot',
+    size: 42,
+    colour: 'Brown'
+  },
+  pairs_sold: 27
+}
+{
+  _id: {
+    product: 'GRA Court Sneaker',
+    size: 39,
+    colour: 'Navy'
+  },
+  pairs_sold: 27
+}
+{
+  _id: {
+    product: 'Bodija Wingtip Brogue',
+    size: 44,
+    colour: 'Burgundy'
+  },
+  pairs_sold: 27
+}
+
+======================================================================
+M5  Flexible schema: bespoke orders in ostrich leather with a monogram (fields exist only on bespoke orders)
+======================================================================
+orders that HAVE a bespoke section : 19946
+orders WITHOUT one (no NULL columns): 230056
+{
+  _id: 2,
+  customer: {
+    name: 'Segun Nwosu'
+  },
+  bespoke: {
+    foot_length_cm: 29.4,
+    foot_width_cm: 11.4,
+    leather: 'Ostrich',
+    monogram: 'C81'
+  }
+}
+{
+  _id: 499,
+  customer: {
+    name: 'Aisha Ojo'
+  },
+  bespoke: {
+    foot_length_cm: 27.2,
+    foot_width_cm: 10.1,
+    leather: 'Ostrich',
+    monogram: '3CF'
+  }
+}
+{
+  _id: 516,
+  customer: {
+    name: 'Halima Usman'
+  },
+  bespoke: {
+    foot_length_cm: 27.1,
+    foot_width_cm: 9.4,
+    leather: 'Ostrich',
+    monogram: 'F3F'
+  }
+}
+
+======================================================================
+M6  Schema validation still protects key fields: inserting an order with an unknown status
+======================================================================
+REJECTED: Document failed validation

@@ -1,0 +1,5 @@
+products :     120 documents (2,400 embedded variants)
+customers:  40,000 documents
+orders   : 250,002 documents
+done in 32.3 s
+MongoDB data size: 205.3 MB, storage: 54.6 MB
