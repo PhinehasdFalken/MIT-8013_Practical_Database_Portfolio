@@ -1,0 +1,145 @@
+Pager usage is off.
+SET
+CREATE EXTENSION
+psql:/p5/01_horizontal_fragmentation.sql:26: NOTICE:  server "site_abuja" does not exist, skipping
+DROP SERVER
+CREATE SERVER
+CREATE USER MAPPING
+psql:/p5/01_horizontal_fragmentation.sql:34: NOTICE:  table "order_frag" does not exist, skipping
+DROP TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE FOREIGN TABLE
+--- loading 250k orders into the fragmented table; northern rows travel to the Abuja site
+Timing is on.
+INSERT 0 250000
+Time: 1394.221 ms (00:01.394)
+Timing is off.
+ANALYZE
+=== 1. ALLOCATION: rows per fragment and the server that stores it
+    fragment    |      stored_at       | orders 
+----------------+----------------------+--------
+ of_south_west  | Lagos site (primary) | 115822
+ of_south_east  | Lagos site (primary) |  33481
+ of_south_south | Lagos site (primary) |  34424
+ of_north       | Abuja site (remote)  |  66273
+(4 rows)
+
+=== 2a. COMPLETENESS: every order is in some fragment (fragment total = original total)
+ original_rows | rows_in_all_fragments 
+---------------+-----------------------
+        250000 |                250000
+(1 row)
+
+=== 2b. DISJOINTNESS: no order is stored in two fragments
+  rows  | distinct_orders 
+--------+-----------------
+ 250000 |          250000
+(1 row)
+
+=== 2c. RECONSTRUCTION: union of fragments = original (both differences must be 0)
+ missing_after_union | extra_after_union 
+---------------------+-------------------
+                   0 |                 0
+(1 row)
+
+=== 2d. The remote site enforces its own predicate: a Lagos order cannot be stored in Abuja
+psql:/p5/01_horizontal_fragmentation.sql:88: ERROR:  new row for relation "order_frag_north" violates check constraint "order_frag_north_region_id_check"
+DETAIL:  Failing row contains (999999999, 1, 1, 2026-11-11 09:55:18.292868, pending, 1000.00).
+CONTEXT:  remote SQL command: INSERT INTO public.order_frag_north(order_id, region_id, customer_id, order_date, status, total_amount) VALUES ($1, $2, $3, $4, $5, $6)
+=== 3a. FRAGMENTATION TRANSPARENCY + PRUNING: the query names only order_frag;
+        the optimiser reads ONLY the South-East fragment
+                               QUERY PLAN                               
+------------------------------------------------------------------------
+ Aggregate (actual rows=1 loops=1)
+   ->  Seq Scan on of_south_east order_frag (actual rows=33481 loops=1)
+         Filter: (region_id = 2)
+(3 rows)
+
+=== 3b. LOCATION TRANSPARENCY: the same kind of query for the North-West. The user still names
+        only order_frag; the DBMS sends it to the Abuja site ("Foreign Scan" + "Remote SQL").
+                                          QUERY PLAN                                          
+----------------------------------------------------------------------------------------------
+ Aggregate
+   Output: count(*), sum(order_frag.total_amount)
+   ->  Foreign Scan on fk.of_north order_frag
+         Output: order_frag.total_amount
+         Remote SQL: SELECT total_amount FROM public.order_frag_north WHERE ((region_id = 5))
+(5 rows)
+
+ north_west_orders |    revenue    
+-------------------+---------------
+             15208 | 1763854400.00
+(1 row)
+
+=== 3c. DISTRIBUTED QUERY OPTIMISATION – network cost of a GLOBAL report (revenue per region)
+--- 3c-i  default plan: every northern order is SHIPPED from Abuja to Lagos, then aggregated
+                                      QUERY PLAN                                       
+---------------------------------------------------------------------------------------
+ HashAggregate (actual rows=6 loops=1)
+   Output: order_frag.region_id, count(*), sum(order_frag.total_amount)
+   Group Key: order_frag.region_id
+   Batches: 1  Memory Usage: 24kB
+   ->  Append (actual rows=250000 loops=1)
+         ->  Seq Scan on fk.of_south_west order_frag_1 (actual rows=115822 loops=1)
+               Output: order_frag_1.region_id, order_frag_1.total_amount
+         ->  Seq Scan on fk.of_south_east order_frag_2 (actual rows=33481 loops=1)
+               Output: order_frag_2.region_id, order_frag_2.total_amount
+         ->  Seq Scan on fk.of_south_south order_frag_3 (actual rows=34424 loops=1)
+               Output: order_frag_3.region_id, order_frag_3.total_amount
+         ->  Foreign Scan on fk.of_north order_frag_4 (actual rows=66273 loops=1)
+               Output: order_frag_4.region_id, order_frag_4.total_amount
+               Remote SQL: SELECT region_id, total_amount FROM public.order_frag_north
+(14 rows)
+
+--- 3c-ii partition-wise aggregation: each site aggregates its OWN fragment; Abuja ships only totals
+SET
+                                                QUERY PLAN                                                 
+-----------------------------------------------------------------------------------------------------------
+ Append (actual rows=6 loops=1)
+   ->  HashAggregate (actual rows=1 loops=1)
+         Output: order_frag.region_id, count(*), sum(order_frag.total_amount)
+         Group Key: order_frag.region_id
+         Batches: 1  Memory Usage: 24kB
+         ->  Seq Scan on fk.of_south_west order_frag (actual rows=115822 loops=1)
+               Output: order_frag.region_id, order_frag.total_amount
+   ->  HashAggregate (actual rows=1 loops=1)
+         Output: order_frag_1.region_id, count(*), sum(order_frag_1.total_amount)
+         Group Key: order_frag_1.region_id
+         Batches: 1  Memory Usage: 24kB
+         ->  Seq Scan on fk.of_south_east order_frag_1 (actual rows=33481 loops=1)
+               Output: order_frag_1.region_id, order_frag_1.total_amount
+   ->  HashAggregate (actual rows=1 loops=1)
+         Output: order_frag_2.region_id, count(*), sum(order_frag_2.total_amount)
+         Group Key: order_frag_2.region_id
+         Batches: 1  Memory Usage: 24kB
+         ->  Seq Scan on fk.of_south_south order_frag_2 (actual rows=34424 loops=1)
+               Output: order_frag_2.region_id, order_frag_2.total_amount
+   ->  Foreign Scan (actual rows=3 loops=1)
+         Output: order_frag_3.region_id, (count(*)), (sum(order_frag_3.total_amount))
+         Relations: Aggregate on (fk.of_north order_frag_3)
+         Remote SQL: SELECT region_id, count(*), sum(total_amount) FROM public.order_frag_north GROUP BY 1
+(23 rows)
+
+--- the report itself (identical either way)
+  region_name  | orders |    revenue     
+---------------+--------+----------------
+ South-West    | 115822 | 13436571100.00
+ North-Central |  43232 |  5017110500.00
+ South-South   |  34424 |  3955952500.00
+ South-East    |  33481 |  3859454600.00
+ North-West    |  15208 |  1763854400.00
+ North-East    |   7833 |   910431000.00
+(6 rows)
+
+RESET
+=== 3d. A new order from Kano is routed to the Abuja site automatically (insert transparency)
+INSERT 0 1
+ stored_in_fragment | order_id  | region_id 
+--------------------+-----------+-----------
+ of_north           | 900000001 |         5
+(1 row)
+
+DELETE 1

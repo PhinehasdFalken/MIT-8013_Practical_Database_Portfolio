@@ -1,0 +1,68 @@
+Finesse Klass distributed demo – 16.15 (Debian 16.15-1.pgdg13+2) – mode=docker
+
+==============================================================================
+R0  TOPOLOGY
+==============================================================================
+  primary   port 5440  role=PRIMARY (read/write) orders=250,000
+  replica1  port 5441  role=STANDBY (read-only)  orders=250,000
+  replica2  port 5442  role=STANDBY (read-only)  orders=250,000
+  replication connections seen by the primary (pg_stat_replication):
+    replica1  state=streaming  sync_state=async  replay lag=        0 bytes
+    replica2  state=streaming  sync_state=async  replay lag=        0 bytes
+  replica2 recovery_min_apply_delay = 15s
+
+==============================================================================
+R1  REPLICATION + TRANSPARENCY: write on the primary, read on replica1
+==============================================================================
+  primary  : INSERT probe id=407 committed in 14.8 ms
+  replica1 : same row visible after 33 ms (the reader does not need to know which copy it uses)
+  WAL position: primary 0/25354960 / replica1 replayed up to 0/25354960
+
+==============================================================================
+R2  A STANDBY IS READ-ONLY
+==============================================================================
+  replica1 refused the write: ReadOnlySqlTransaction: cannot execute INSERT in a read-only transaction
+
+==============================================================================
+R3  EVENTUAL CONSISTENCY: replica2 applies changes 15 s late
+==============================================================================
+  primary  : price changed to 58200.00
+  replica1 : 58200.00   (up to date)
+  replica2 : 57200.00   <- STALE READ: old price still served
+  replica2 converged to 58200.00 after 15.0 s – all copies agree again
+
+==============================================================================
+R4  ASYNCHRONOUS replication during a PARTITION -> availability first (AP behaviour)
+==============================================================================
+>>> PARTITION: replica1 is cut off (docker pause fk-replica1)
+  primary  : write committed in 5.9 ms although replica1 is unreachable -> AVAILABLE
+  replication status while partitioned (replica1's replay position stops moving):
+    replica1  state=streaming  sync_state=async  replay lag=    1,592 bytes
+    replica2  state=streaming  sync_state=async  replay lag=    1,632 bytes
+>>> HEAL: replica1 is reachable again (docker unpause fk-replica1)
+  replica1 caught up 43 ms after the partition healed -> copies CONVERGE (eventual consistency)
+    replica1  state=streaming  sync_state=async  replay lag=        0 bytes
+    replica2  state=streaming  sync_state=async  replay lag=    1,632 bytes
+
+==============================================================================
+R5  SYNCHRONOUS replication -> consistency first (CP behaviour)
+==============================================================================
+  synchronous_standby_names = 'replica1' -> a COMMIT returns only after replica1 confirms it
+    replica1  state=streaming  sync_state=sync   replay lag=        0 bytes
+    replica2  state=streaming  sync_state=async  replay lag=   40,776 bytes
+  average commit time over 200 single-row orders: async 3.13 ms  vs  sync 5.85 ms  (x1.9: the price of never losing a committed order)
+>>> PARTITION: replica1 is cut off (docker pause fk-replica1)
+  primary  : after 5 s the COMMIT is still waiting (wait_event = SyncRep) -> the system gives up AVAILABILITY to keep the copies CONSISTENT
+>>> HEAL: replica1 is reachable again (docker unpause fk-replica1)
+  primary  : the COMMIT completed 5.1 s after it was issued, right after replica1 returned
+  (synchronous replication switched off again)
+
+==============================================================================
+R6  FAILOVER: the primary crashes, replica1 is promoted
+==============================================================================
+>>> CRASH: primary goes down (docker kill fk-primary)
+  replica1 still answers READS: 250,000 orders (catalogue and order history stay online)
+  but WRITES fail: cannot execute INSERT in a read-only transaction
+  pg_promote() -> replica1 is now a primary after 0.2 s
+  replica1: in recovery = False; new orders are accepted again; the last order before the crash is present
+  Reset the lab afterwards with: docker compose down -v   (then follow the README set-up again)

@@ -1,0 +1,70 @@
+# Portfolio 5 – a small distributed Finesse Klass deployment (4 PostgreSQL 16 nodes)
+#
+#   fk-primary     "Lagos site"  – read/write primary, also the coordinator for the fragmented table
+#   fk-replica1    hot standby   – streaming replica (switched between async and SYNC in the demo)
+#   fk-replica2    hot standby   – streaming replica that applies changes 15 s late (shows stale reads)
+#   fk-site-abuja  "Abuja site"  – independent server that stores the NORTHERN fragment of the orders
+#
+#   docker compose up -d         start (first start: ~20 s while the replicas clone the primary)
+#   docker compose down -v       stop AND delete all data (use this to reset after the failover test)
+#
+# Host ports: primary 5440, replica1 5441, replica2 5442, site-abuja 5443  (password: finesse)
+x-pg: &pg
+  image: postgres:16
+  environment: &pgenv
+    POSTGRES_PASSWORD: finesse
+    POSTGRES_DB: finesse_klass
+    PGPASSWORD: finesse           # used by pg_basebackup inside the replica containers
+  volumes:
+    - ./docker:/docker-scripts:ro
+    - ../portfolio-1-database-design/sql:/p1:ro     # the Portfolio 1 schema + seed
+    - ./sql:/p5:ro
+
+services:
+  primary:
+    <<: *pg
+    container_name: fk-primary
+    hostname: fk-primary
+    ports: ["5440:5432"]
+    volumes:
+      - ./docker/primary-init.sh:/docker-entrypoint-initdb.d/01-replication.sh:ro
+      - ../portfolio-1-database-design/sql:/p1:ro
+      - ./sql:/p5:ro
+    command: >
+      postgres -c cluster_name=primary -c wal_level=replica -c max_wal_senders=10
+               -c max_replication_slots=10 -c hot_standby=on -c synchronous_commit=on
+               -c listen_addresses=*
+
+  replica1:
+    <<: *pg
+    container_name: fk-replica1
+    hostname: fk-replica1
+    ports: ["5441:5432"]
+    environment:
+      <<: *pgenv
+      REPLICA_NAME: replica1
+      APPLY_DELAY: "0"
+    entrypoint: ["bash", "/docker-scripts/replica-entrypoint.sh"]
+    depends_on: [primary]
+
+  replica2:
+    <<: *pg
+    container_name: fk-replica2
+    hostname: fk-replica2
+    ports: ["5442:5432"]
+    environment:
+      <<: *pgenv
+      REPLICA_NAME: replica2
+      APPLY_DELAY: "15s"
+    entrypoint: ["bash", "/docker-scripts/replica-entrypoint.sh"]
+    depends_on: [primary]
+
+  site-abuja:
+    <<: *pg
+    container_name: fk-site-abuja
+    hostname: fk-site-abuja
+    ports: ["5443:5432"]
+    environment:
+      <<: *pgenv
+      POSTGRES_DB: finesse_site_north
+    command: postgres -c cluster_name=site_abuja -c listen_addresses=*
