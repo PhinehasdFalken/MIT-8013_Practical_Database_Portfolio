@@ -5,7 +5,7 @@ Programme    : Master of Information Technology, Miva Open University - 2026/202
 Case study   : Finesse Klass - Nigerian ready-to-wear and bespoke shoe brand (Instagram-led e-commerce)
 
 GitHub repository (private, assessor added as collaborator):
-  https://github.com/YOUR-USERNAME/advanced-database-portfolio
+  https://github.com/PhinehasdFalken/MIT-8013_Practical_Database_Portfolio.git
 
 Files in this submission
   Uchegbu_Phinehas_301919344_Documentation.pdf   2-3 page portfolio documentation (case study, five activities,
